@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Pokémon Chess</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+  :root {
+    --light: #f5e9c8;
+    --dark: #5a8f4e;
+    --accent: #ffcb05;
+    --accent2: #3b4cca;
+    --bg: #1b2030;
+    --panel: #262c40;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", Arial, sans-serif;
+    background: radial-gradient(circle at 50% 20%, #2a3350, var(--bg) 70%);
+    color: #eee;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  h1 {
+    margin: 14px 0 2px;
+    font-size: clamp(22px, 5vw, 30px);
+    color: var(--accent);
+    text-shadow: 2px 2px 0 var(--accent2), 4px 4px 8px rgba(0,0,0,.5);
+    letter-spacing: 1px;
+  }
+  #subtitle { margin: 0 0 12px; color: #aab; font-size: 13px; text-align: center; padding: 0 10px; }
+  #layout { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; justify-content: center; padding: 0 8px 24px; }
+
+  #boardwrap { position: relative; }
+  #board {
+    display: grid;
+    grid-template-columns: repeat(8, var(--sq));
+    grid-template-rows: repeat(8, var(--sq));
+    --sq: min(76px, 11.7vw);
+    border: 6px solid #3a2d20;
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.6);
+  }
+  .sq {
+    width: var(--sq); height: var(--sq);
+    display: flex; align-items: center; justify-content: center;
+    position: relative; cursor: pointer; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .sq.light { background: var(--light); }
+  .sq.dark  { background: var(--dark); }
+  .sq.lastmove::before {
+    content: ""; position: absolute; inset: 0;
+    background: rgba(255, 203, 5, .35);
+  }
+  .sq.selected::before {
+    content: ""; position: absolute; inset: 0;
+    background: rgba(59, 76, 202, .45);
+  }
+  .sq.check::before {
+    content: ""; position: absolute; inset: 0;
+    background: rgba(220, 40, 40, .55);
+  }
+  .sq .dot {
+    position: absolute; width: 26%; height: 26%;
+    border-radius: 50%; background: rgba(20, 60, 160, .45);
+    pointer-events: none;
+  }
+  .sq .ring {
+    position: absolute; inset: 4%;
+    border: 4px solid rgba(200, 40, 40, .65);
+    border-radius: 50%; pointer-events: none;
+  }
+  .sq img {
+    width: 92%; height: 92%; object-fit: contain;
+    pointer-events: none; position: relative; z-index: 1;
+  }
+  .sq .glyph { font-size: calc(var(--sq) * .6); z-index: 1; }
+  .sq img.w { filter: drop-shadow(0 0 4px rgba(255,215,80,.9)) drop-shadow(0 2px 2px rgba(0,0,0,.4)); }
+  .sq img.b { filter: drop-shadow(0 0 4px rgba(190,90,255,.9)) drop-shadow(0 2px 2px rgba(0,0,0,.4)); }
+  .coord {
+    position: absolute; font-size: 11px; font-weight: bold; z-index: 2; pointer-events: none;
+  }
+  .coord.file { right: 3px; bottom: 1px; }
+  .coord.rank { left: 3px; top: 2px; }
+  .sq.light .coord { color: #7a6f4d; }
+  .sq.dark .coord { color: #d8e8d0; }
+
+  #side {
+    width: 300px; max-width: 96vw; background: var(--panel); border-radius: 12px;
+    padding: 14px 16px; box-shadow: 0 8px 24px rgba(0,0,0,.5);
+  }
+  #status {
+    font-size: 15px; font-weight: bold; min-height: 44px;
+    padding: 8px 10px; border-radius: 8px; background: #1a1f30;
+    display: flex; align-items: center; margin-bottom: 10px;
+  }
+  .btnrow { display: flex; gap: 8px; margin-bottom: 10px; }
+  button {
+    flex: 1; padding: 9px 6px; border: none; border-radius: 8px;
+    background: var(--accent2); color: #fff; font-weight: bold;
+    cursor: pointer; font-size: 13px;
+  }
+  button:hover { filter: brightness(1.2); }
+  button.active { background: var(--accent); color: #222; }
+  input[type=text] {
+    flex: 1.4; padding: 9px 8px; border: none; border-radius: 8px;
+    background: #1a1f30; color: #fff; font-size: 14px; font-weight: bold;
+    text-transform: uppercase; letter-spacing: 2px; min-width: 0;
+  }
+  #netinfo {
+    background: #1a1f30; border-radius: 8px; padding: 8px 10px;
+    font-size: 13px; line-height: 1.6; margin-bottom: 10px; display: none;
+  }
+  #netinfo .code { font-size: 22px; letter-spacing: 4px; color: var(--accent); font-weight: bold; }
+  .teamlabel { font-size: 12px; color: #aab; margin: 8px 0 4px; font-weight: bold; }
+  .fainted {
+    min-height: 40px; background: #1a1f30; border-radius: 8px;
+    display: flex; flex-wrap: wrap; align-items: center; padding: 3px;
+  }
+  .fainted img { width: 34px; height: 34px; object-fit: contain; filter: grayscale(80%) opacity(.8); }
+  #log {
+    margin-top: 12px; background: #1a1f30; border-radius: 8px;
+    height: 170px; overflow-y: auto; padding: 8px 10px;
+    font-size: 12.5px; line-height: 1.55; color: #ccd;
+  }
+  #log .cap { color: #ff9a9a; }
+  #log .evo { color: #ffd966; }
+  #log .chk { color: #ffb347; font-weight: bold; }
+  #log .end { color: var(--accent); font-weight: bold; font-size: 14px; }
+  #log .net { color: #8fd3ff; }
+  #rosterbar { margin-top: 12px; font-size: 11px; color: #99a; line-height: 1.7; }
+</style>
+</head>
+<body>
+<h1>⚡ Pokémon Chess</h1>
+<p id="subtitle">Team Mewtwo (gold glow) vs Team Mew (purple glow) — tap a Pokémon, then a highlighted square</p>
+
+<div id="layout">
+  <div id="boardwrap"><div id="board"></div></div>
+
+  <div id="side">
+    <div id="status">Loading…</div>
+    <div class="btnrow">
+      <button id="btn2p">👥 2P</button>
+      <button id="btnAI" class="active">🤖 CPU</button>
+      <button id="btnNet">🌐 Online</button>
+    </div>
+    <div id="netpanel" style="display:none">
+      <div class="btnrow"><button id="btnCreate">✨ Create Game</button></div>
+      <div class="btnrow">
+        <input type="text" id="joinCode" placeholder="GAME CODE" maxlength="6" autocomplete="off">
+        <button id="btnJoin">Join</button>
+      </div>
+    </div>
+    <div id="netinfo"></div>
+    <div class="btnrow"><button id="btnNew">🔄 New Game</button></div>
+
+    <div class="teamlabel">Fainted — Team Mewtwo</div>
+    <div class="fainted" id="faintW"></div>
+    <div class="teamlabel">Fainted — Team Mew</div>
+    <div class="fainted" id="faintB"></div>
+
+    <div id="log"></div>
+
+    <div id="rosterbar">
+      <b>Roster:</b> King = Mewtwo / Mew · Queen = Charizard / Gengar ·
+      Rook = Snorlax / Onix · Bishop = Alakazam / Hypno ·
+      Knight = Rapidash / Arcanine · Pawn = Pikachu / Eevee.
+      Pawns reaching the far side <i>evolve</i> into the Queen!
+      <br><b>Online:</b> Create a game, send the code or link to a friend — they join from any phone or PC.
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+// ---------- Pokémon roster ----------
+const SPRITE = id => `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`;
+const ROSTER = {
+  w: { k:[150,"Mewtwo"], q:[6,"Charizard"], r:[143,"Snorlax"], b:[65,"Alakazam"], n:[78,"Rapidash"], p:[25,"Pikachu"] },
+  b: { k:[151,"Mew"],    q:[94,"Gengar"],   r:[95,"Onix"],     b:[97,"Hypno"],    n:[59,"Arcanine"], p:[133,"Eevee"] }
+};
+const GLYPH = { w:{k:"♔",q:"♕",r:"♖",b:"♗",n:"♘",p:"♙"}, b:{k:"♚",q:"♛",r:"♜",b:"♝",n:"♞",p:"♟"} };
+const TEAM = { w:"Team Mewtwo", b:"Team Mew" };
+
+// ---------- Chess engine ----------
+// Board: 64-array, index = row*8+col, row 0 = rank 8 (top). White starts at bottom.
+let S;          // game state
+let mode = "ai";
+let selected = null;   // {r,c,moves}
+let lastMove = null;
+let gameOver = false;
+let aiThinking = false;
+let net = null;        // online play: {peer, conn, myColor, code}
+
+function newState() {
+  const bd = new Array(64).fill(null);
+  const back = ["r","n","b","q","k","b","n","r"];
+  for (let c = 0; c < 8; c++) {
+    bd[0*8+c] = { t: back[c], c: "b" };
+    bd[1*8+c] = { t: "p", c: "b" };
+    bd[6*8+c] = { t: "p", c: "w" };
+    bd[7*8+c] = { t: back[c], c: "w" };
+  }
+  return { bd, turn: "w", castle: { wk:true, wq:true, bk:true, bq:true }, ep: null };
+}
+
+const inB = (r,c) => r >= 0 && r < 8 && c >= 0 && c < 8;
+const at  = (st,r,c) => inB(r,c) ? st.bd[r*8+c] : undefined;
+const opp = col => col === "w" ? "b" : "w";
+
+// Is square idx attacked by color `by`?
+function attacked(st, idx, by) {
+  const r = idx >> 3, c = idx & 7;
+  const pd = by === "w" ? 1 : -1; // attacker pawns sit one row "behind" in their move direction
+  for (const dc of [-1, 1]) {
+    const p = at(st, r + pd, c + dc);
+    if (p && p.c === by && p.t === "p") return true;
+  }
+  for (const [dr,dc] of [[1,2],[2,1],[-1,2],[-2,1],[1,-2],[2,-1],[-1,-2],[-2,-1]]) {
+    const p = at(st, r + dr, c + dc);
+    if (p && p.c === by && p.t === "n") return true;
+  }
+  for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+    if (!dr && !dc) continue;
+    const p = at(st, r + dr, c + dc);
+    if (p && p.c === by && p.t === "k") return true;
+  }
+  const rays = [
+    [[-1,0],[1,0],[0,-1],[0,1], ["r","q"]],
+    [[-1,-1],[-1,1],[1,-1],[1,1], ["b","q"]]
+  ];
+  for (const ray of rays) {
+    const types = ray[ray.length - 1];
+    for (let i = 0; i < 4; i++) {
+      const [dr,dc] = ray[i];
+      let rr = r + dr, cc = c + dc;
+      while (inB(rr,cc)) {
+        const p = st.bd[rr*8+cc];
+        if (p) {
+          if (p.c === by && types.includes(p.t)) return true;
+          break;
+        }
+        rr += dr; cc += dc;
+      }
+    }
+  }
+  return false;
+}
+
+function kingIdx(st, col) {
+  for (let i = 0; i < 64; i++) {
+    const p = st.bd[i];
+    if (p && p.t === "k" && p.c === col) return i;
+  }
+  return -1;
+}
+const inCheck = (st, col) => attacked(st, kingIdx(st, col), opp(col));
+
+function genPseudo(st, r, c) {
+  const p = st.bd[r*8+c];
+  if (!p) return [];
+  const ms = [];
+  const add = (tr, tc, extra) => ms.push(Object.assign({ fr:r, fc:c, tr, tc }, extra));
+  const me = p.c, foe = opp(me);
+
+  if (p.t === "p") {
+    const dir = me === "w" ? -1 : 1;
+    const start = me === "w" ? 6 : 1;
+    if (at(st, r + dir, c) === null) {
+      add(r + dir, c);
+      if (r === start && at(st, r + 2*dir, c) === null) add(r + 2*dir, c, { dbl:true });
+    }
+    for (const dc of [-1, 1]) {
+      const t = at(st, r + dir, c + dc);
+      if (t && t.c === foe) add(r + dir, c + dc);
+      else if (t === null && st.ep === (r + dir)*8 + (c + dc)) add(r + dir, c + dc, { ep:true });
+    }
+  } else if (p.t === "n") {
+    for (const [dr,dc] of [[1,2],[2,1],[-1,2],[-2,1],[1,-2],[2,-1],[-1,-2],[-2,-1]]) {
+      const t = at(st, r + dr, c + dc);
+      if (t === null || (t && t.c === foe)) add(r + dr, c + dc);
+    }
+  } else if (p.t === "k") {
+    for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+      if (!dr && !dc) continue;
+      const t = at(st, r + dr, c + dc);
+      if (t === null || (t && t.c === foe)) add(r + dr, c + dc);
+    }
+    const home = me === "w" ? 7 : 0;
+    if (r === home && c === 4 && !attacked(st, home*8+4, foe)) {
+      if (st.castle[me + "k"] &&
+          at(st, home, 5) === null && at(st, home, 6) === null &&
+          !attacked(st, home*8+5, foe) && !attacked(st, home*8+6, foe)) {
+        const rk = st.bd[home*8+7];
+        if (rk && rk.t === "r" && rk.c === me) add(home, 6, { castle:"k" });
+      }
+      if (st.castle[me + "q"] &&
+          at(st, home, 1) === null && at(st, home, 2) === null && at(st, home, 3) === null &&
+          !attacked(st, home*8+3, foe) && !attacked(st, home*8+2, foe)) {
+        const rk = st.bd[home*8+0];
+        if (rk && rk.t === "r" && rk.c === me) add(home, 2, { castle:"q" });
+      }
+    }
+  } else {
+    const dirs = p.t === "r" ? [[-1,0],[1,0],[0,-1],[0,1]]
+               : p.t === "b" ? [[-1,-1],[-1,1],[1,-1],[1,1]]
+               : [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]];
+    for (const [dr,dc] of dirs) {
+      let rr = r + dr, cc = c + dc;
+      while (inB(rr,cc)) {
+        const t = st.bd[rr*8+cc];
+        if (t === null) add(rr, cc);
+        else { if (t.c === foe) add(rr, cc); break; }
+        rr += dr; cc += dc;
+      }
+    }
+  }
+  return ms;
+}
+
+// Apply a move; returns { ns, captured, promo }
+function applyMove(st, m) {
+  const ns = { bd: st.bd.slice(), turn: opp(st.turn), castle: Object.assign({}, st.castle), ep: null };
+  const fi = m.fr*8 + m.fc, ti = m.tr*8 + m.tc;
+  const p = ns.bd[fi];
+  let captured = ns.bd[ti];
+  ns.bd[ti] = p;
+  ns.bd[fi] = null;
+  if (m.ep) {
+    const ci = m.fr*8 + m.tc;
+    captured = ns.bd[ci];
+    ns.bd[ci] = null;
+  }
+  if (m.dbl) ns.ep = ((m.fr + m.tr) / 2)*8 + m.fc;
+  let promo = false;
+  if (p.t === "p" && (m.tr === 0 || m.tr === 7)) {
+    ns.bd[ti] = { t:"q", c:p.c };
+    promo = true;
+  }
+  if (m.castle) {
+    const home = p.c === "w" ? 7 : 0;
+    if (m.castle === "k") { ns.bd[home*8+5] = ns.bd[home*8+7]; ns.bd[home*8+7] = null; }
+    else                  { ns.bd[home*8+3] = ns.bd[home*8+0]; ns.bd[home*8+0] = null; }
+  }
+  if (p.t === "k") { ns.castle[p.c + "k"] = false; ns.castle[p.c + "q"] = false; }
+  const corners = { 0:"bq", 7:"bk", 56:"wq", 63:"wk" };
+  if (corners[fi]) ns.castle[corners[fi]] = false;
+  if (corners[ti]) ns.castle[corners[ti]] = false;
+  return { ns, captured, promo };
+}
+
+function legalMoves(st, r, c) {
+  const p = st.bd[r*8+c];
+  if (!p || p.c !== st.turn) return [];
+  return genPseudo(st, r, c).filter(m => !inCheck(applyMove(st, m).ns, p.c));
+}
+
+function allLegal(st) {
+  const out = [];
+  for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+    const p = st.bd[r*8+c];
+    if (p && p.c === st.turn) out.push(...legalMoves(st, r, c));
+  }
+  return out;
+}
+
+// ---------- AI (minimax + alpha-beta, depth 3) ----------
+const VAL = { p:100, n:320, b:330, r:500, q:900, k:0 };
+
+function evalState(st) {
+  let s = 0;
+  for (let i = 0; i < 64; i++) {
+    const p = st.bd[i];
+    if (!p) continue;
+    const r = i >> 3, c = i & 7;
+    let v = VAL[p.t];
+    v += (3.5 - Math.abs(3.5 - c)) * 4 + (3.5 - Math.abs(3.5 - r)) * 2;
+    if (p.t === "p") v += p.c === "w" ? (6 - r) * 5 : (r - 1) * 5;
+    s += p.c === "w" ? v : -v;
+  }
+  return s;
+}
+
+function orderMoves(st, moves) {
+  return moves.sort((a, b) => {
+    const ca = st.bd[a.tr*8+a.tc] ? VAL[st.bd[a.tr*8+a.tc].t] : 0;
+    const cb = st.bd[b.tr*8+b.tc] ? VAL[st.bd[b.tr*8+b.tc].t] : 0;
+    return cb - ca;
+  });
+}
+
+function search(st, depth, alpha, beta) {
+  if (depth === 0) return evalState(st);
+  const moves = orderMoves(st, allLegal(st));
+  if (moves.length === 0) {
+    if (inCheck(st, st.turn)) return st.turn === "w" ? -99999 - depth : 99999 + depth;
+    return 0;
+  }
+  if (st.turn === "w") {
+    let best = -Infinity;
+    for (const m of moves) {
+      best = Math.max(best, search(applyMove(st, m).ns, depth - 1, alpha, beta));
+      alpha = Math.max(alpha, best);
+      if (beta <= alpha) break;
+    }
+    return best;
+  } else {
+    let best = Infinity;
+    for (const m of moves) {
+      best = Math.min(best, search(applyMove(st, m).ns, depth - 1, alpha, beta));
+      beta = Math.min(beta, best);
+      if (beta <= alpha) break;
+    }
+    return best;
+  }
+}
+
+function aiPickMove() {
+  const moves = orderMoves(S, allLegal(S));
+  let best = [], bestScore = Infinity; // AI plays black: minimize
+  for (const m of moves) {
+    const score = search(applyMove(S, m).ns, 2, -Infinity, Infinity);
+    if (score < bestScore - 0.001) { bestScore = score; best = [m]; }
+    else if (Math.abs(score - bestScore) < 0.001) best.push(m);
+  }
+  return best[Math.floor(Math.random() * best.length)];
+}
+
+// ---------- Online play (PeerJS) ----------
+const PEER_PREFIX = "pkmn-chess-v1-";
+const netinfoEl = document.getElementById("netinfo");
+
+function randomCode() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no easily-confused chars
+  let s = "";
+  for (let i = 0; i < 5; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  return s;
+}
+
+function netDestroy() {
+  if (net && net.peer) { try { net.peer.destroy(); } catch (e) {} }
+  net = null;
+  netinfoEl.style.display = "none";
+  netinfoEl.innerHTML = "";
+}
+
+function shareLink(code) {
+  return location.origin + location.pathname + "?join=" + code;
+}
+
+function showNetInfo(html) {
+  netinfoEl.style.display = "block";
+  netinfoEl.innerHTML = html;
+}
+
+function copyText(text, btn) {
+  const done = () => { btn.textContent = "✅ Copied!"; setTimeout(() => btn.textContent = btn.dataset.label, 1500); };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => {});
+  } else {
+    const ta = document.createElement("textarea");
+    ta.value = text; document.body.appendChild(ta);
+    ta.select(); document.execCommand("copy"); ta.remove(); done();
+  }
+}
+
+function netCreate() {
+  netDestroy();
+  const code = randomCode();
+  showNetInfo("⏳ Setting up game…");
+  const peer = new Peer(PEER_PREFIX + code);
+  net = { peer, conn: null, myColor: "w", code };
+  peer.on("open", () => {
+    const link = shareLink(code);
+    showNetInfo(
+      `Your game code: <span class="code">${code}</span><br>` +
+      `Send the code or this link to a friend:<br>` +
+      `<div class="btnrow" style="margin-top:6px">` +
+      `<button id="btnCopyLink" data-label="🔗 Copy Link">🔗 Copy Link</button>` +
+      `<button id="btnCopyCode" data-label="📋 Copy Code">📋 Copy Code</button></div>` +
+      `⏳ Waiting for opponent to join…`
+    );
+    document.getElementById("btnCopyLink").onclick = e => copyText(link, e.target);
+    document.getElementById("btnCopyCode").onclick = e => copyText(code, e.target);
+    setStatus("⏳ Waiting for a challenger…");
+  });
+  peer.on("connection", conn => {
+    if (net.conn) { conn.close(); return; } // already have an opponent
+    netSetup(conn);
+  });
+  peer.on("error", err => {
+    if (err.type === "unavailable-id") netCreate(); // code collision, try another
+    else showNetInfo(`❌ Connection error: ${err.type}. Check your internet and try again.`);
+  });
+}
+
+function netJoin(code) {
+  code = code.trim().toUpperCase();
+  if (!code) return;
+  netDestroy();
+  showNetInfo("⏳ Joining game " + code + "…");
+  const peer = new Peer();
+  net = { peer, conn: null, myColor: "b", code };
+  peer.on("open", () => {
+    const conn = peer.connect(PEER_PREFIX + code, { reliable: true });
+    netSetup(conn);
+  });
+  peer.on("error", err => {
+    if (err.type === "peer-unavailable") showNetInfo(`❌ Game <b>${code}</b> not found. Double-check the code (the creator must keep their page open).`);
+    else showNetInfo(`❌ Connection error: ${err.type}. Check your internet and try again.`);
+  });
+}
+
+function netSetup(conn) {
+  net.conn = conn;
+  conn.on("open", () => {
+    showNetInfo(`🟢 Connected! Game <span class="code">${net.code}</span><br>You are <b>${TEAM[net.myColor]}</b> ${net.myColor === "w" ? "🟡 (you move first)" : "🟣"}`);
+    if (net.myColor === "w") conn.send({ type: "start" });
+    newGame();
+  });
+  conn.on("data", d => {
+    if (!d || typeof d !== "object") return;
+    if (d.type === "move" && mode === "online" && !gameOver && S.turn !== net.myColor) {
+      // validate against our own engine before applying
+      const legal = legalMoves(S, d.m.fr, d.m.fc).find(m =>
+        m.tr === d.m.tr && m.tc === d.m.tc && !!m.ep === !!d.m.ep && (m.castle || null) === (d.m.castle || null));
+      if (legal) playMove(legal, true);
+    } else if (d.type === "start" || d.type === "new") {
+      newGame();
+      if (d.type === "new") addLog("🔄 Opponent started a new game.", "net");
+    }
+  });
+  conn.on("close", () => {
+    addLog("🔌 Opponent disconnected.", "net");
+    showNetInfo(`🔌 Opponent disconnected. Create or join a new game to keep playing.`);
+    setStatus("🔌 Opponent left the game.");
+    gameOver = true;
+  });
+}
+
+// ---------- UI ----------
+const boardEl = document.getElementById("board");
+const statusEl = document.getElementById("status");
+const logEl = document.getElementById("log");
+const faintW = document.getElementById("faintW");
+const faintB = document.getElementById("faintB");
+const sqName = (r, c) => "abcdefgh"[c] + (8 - r);
+
+function pieceImg(p) {
+  const [id, name] = ROSTER[p.c][p.t];
+  const img = document.createElement("img");
+  img.src = SPRITE(id);
+  img.alt = name;
+  img.title = `${name} (${{k:"King",q:"Queen",r:"Rook",b:"Bishop",n:"Knight",p:"Pawn"}[p.t]})`;
+  img.className = p.c;
+  img.draggable = false;
+  img.onerror = () => {
+    const span = document.createElement("span");
+    span.className = "glyph";
+    span.textContent = GLYPH[p.c][p.t];
+    img.replaceWith(span);
+  };
+  return img;
+}
+
+function render() {
+  boardEl.innerHTML = "";
+  const flip = mode === "online" && net && net.myColor === "b"; // black player sees their team at the bottom
+  const checkIdx = inCheck(S, S.turn) ? kingIdx(S, S.turn) : -1;
+  const moveTargets = selected ? selected.moves : [];
+  for (let dr = 0; dr < 8; dr++) for (let dc = 0; dc < 8; dc++) {
+    const r = flip ? 7 - dr : dr, c = flip ? 7 - dc : dc;
+    const i = r*8 + c;
+    const sq = document.createElement("div");
+    sq.className = "sq " + ((r + c) % 2 ? "dark" : "light");
+    if (lastMove && (lastMove.fr*8+lastMove.fc === i || lastMove.tr*8+lastMove.tc === i)) sq.classList.add("lastmove");
+    if (selected && selected.r === r && selected.c === c) sq.classList.add("selected");
+    if (i === checkIdx) sq.classList.add("check");
+    if (dc === 0) { const d = document.createElement("span"); d.className = "coord rank"; d.textContent = 8 - r; sq.appendChild(d); }
+    if (dr === 7) { const d = document.createElement("span"); d.className = "coord file"; d.textContent = "abcdefgh"[c]; sq.appendChild(d); }
+    const m = moveTargets.find(m => m.tr === r && m.tc === c);
+    if (m) {
+      const d = document.createElement("div");
+      d.className = (S.bd[i] || m.ep) ? "ring" : "dot";
+      sq.appendChild(d);
+    }
+    const p = S.bd[i];
+    if (p) sq.appendChild(pieceImg(p));
+    sq.onclick = () => onSquareClick(r, c);
+    boardEl.appendChild(sq);
+  }
+}
+
+function setStatus(html) { statusEl.innerHTML = "<span>" + html + "</span>"; }
+
+function addLog(html, cls) {
+  const d = document.createElement("div");
+  if (cls) d.className = cls;
+  d.innerHTML = html;
+  logEl.appendChild(d);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function onSquareClick(r, c) {
+  if (gameOver || aiThinking) return;
+  if (mode === "ai" && S.turn === "b") return;
+  if (mode === "online") {
+    if (!net || !net.conn || !net.conn.open) return; // not connected yet
+    if (S.turn !== net.myColor) return;              // not your turn
+  }
+  const m = selected && selected.moves.find(m => m.tr === r && m.tc === c);
+  if (m) { playMove(m); return; }
+  const p = S.bd[r*8+c];
+  if (p && p.c === S.turn) {
+    const moves = legalMoves(S, r, c);
+    selected = (selected && selected.r === r && selected.c === c) ? null : { r, c, moves };
+  } else {
+    selected = null;
+  }
+  render();
+}
+
+function playMove(m, remote) {
+  const mover = S.bd[m.fr*8 + m.fc];
+  const [, moverName] = ROSTER[mover.c][mover.t];
+  const { ns, captured, promo } = applyMove(S, m);
+
+  if (mode === "online" && !remote && net && net.conn && net.conn.open) {
+    net.conn.send({ type: "move", m: { fr:m.fr, fc:m.fc, tr:m.tr, tc:m.tc, ep:!!m.ep, dbl:!!m.dbl, castle:m.castle || null } });
+  }
+
+  if (m.castle) {
+    addLog(`🏰 ${TEAM[mover.c]} castles ${m.castle === "k" ? "kingside" : "queenside"}!`);
+  } else if (captured) {
+    const [cid, cname] = ROSTER[captured.c][captured.t];
+    addLog(`💥 ${moverName} defeated ${cname} on ${sqName(m.tr, m.tc)}!`, "cap");
+    const img = document.createElement("img");
+    img.src = SPRITE(cid); img.title = cname; img.draggable = false;
+    (captured.c === "w" ? faintW : faintB).appendChild(img);
+  } else {
+    addLog(`${moverName} → ${sqName(m.tr, m.tc)}`);
+  }
+  if (promo) {
+    const [, qname] = ROSTER[mover.c].q;
+    addLog(`✨ ${moverName} evolved into ${qname}!`, "evo");
+  }
+
+  S = ns;
+  lastMove = m;
+  selected = null;
+
+  const replies = allLegal(S);
+  const check = inCheck(S, S.turn);
+  if (replies.length === 0) {
+    gameOver = true;
+    if (check) {
+      const winner = opp(S.turn);
+      const [, loserKing] = ROSTER[S.turn].k;
+      addLog(`🏆 Checkmate! ${loserKing} fainted — ${TEAM[winner]} wins!`, "end");
+      setStatus(`🏆 Checkmate — <b>${TEAM[winner]}</b> wins!`);
+    } else {
+      addLog(`🤝 Stalemate — it's a draw!`, "end");
+      setStatus(`🤝 Stalemate — draw!`);
+    }
+    render();
+    return;
+  }
+  if (check) {
+    const [, kname] = ROSTER[S.turn].k;
+    addLog(`⚠️ Check! ${kname} is in danger!`, "chk");
+  }
+  render();
+  updateTurnStatus();
+
+  if (mode === "ai" && S.turn === "b" && !gameOver) {
+    aiThinking = true;
+    setStatus(`🤖 ${TEAM.b} is thinking…`);
+    setTimeout(() => {
+      const am = aiPickMove();
+      aiThinking = false;
+      if (am) playMove(am);
+    }, 120);
+  }
+}
+
+function updateTurnStatus() {
+  const chk = inCheck(S, S.turn) ? " — ⚠️ in check!" : "";
+  if (mode === "online" && net) {
+    setStatus(S.turn === net.myColor
+      ? `🎯 <b>Your turn</b> (${TEAM[net.myColor]})${chk}`
+      : `⏳ Opponent's turn (${TEAM[S.turn]})${chk}`);
+  } else {
+    const glow = S.turn === "w" ? "🟡" : "🟣";
+    setStatus(`${glow} <b>${TEAM[S.turn]}</b> to move${chk}`);
+  }
+}
+
+function newGame() {
+  S = newState();
+  selected = null;
+  lastMove = null;
+  gameOver = false;
+  aiThinking = false;
+  faintW.innerHTML = "";
+  faintB.innerHTML = "";
+  logEl.innerHTML = "";
+  if (mode === "online") {
+    if (net && net.conn && net.conn.open) addLog(`⚔️ Online battle! You are <b>${TEAM[net.myColor]}</b>.`, "net");
+    else addLog(`🌐 Create a game and share the code, or enter a friend's code to join.`, "net");
+  } else {
+    addLog(`⚔️ A wild chess match appeared! ${mode === "ai" ? "You are Team Mewtwo (gold)." : "Two players, alternate turns."}`);
+  }
+  render();
+  if (mode === "online" && (!net || !net.conn || !net.conn.open)) {
+    setStatus("🌐 Online: create or join a game below.");
+  } else {
+    updateTurnStatus();
+  }
+}
+
+function setMode(m) {
+  mode = m;
+  document.getElementById("btn2p").classList.toggle("active", m === "2p");
+  document.getElementById("btnAI").classList.toggle("active", m === "ai");
+  document.getElementById("btnNet").classList.toggle("active", m === "online");
+  document.getElementById("netpanel").style.display = m === "online" ? "block" : "none";
+  if (m !== "online") netDestroy();
+  newGame();
+}
+
+document.getElementById("btnNew").onclick = () => {
+  if (mode === "online" && net && net.conn && net.conn.open) net.conn.send({ type: "new" });
+  newGame();
+};
+document.getElementById("btn2p").onclick = () => setMode("2p");
+document.getElementById("btnAI").onclick = () => setMode("ai");
+document.getElementById("btnNet").onclick = () => setMode("online");
+document.getElementById("btnCreate").onclick = netCreate;
+document.getElementById("btnJoin").onclick = () => netJoin(document.getElementById("joinCode").value);
+document.getElementById("joinCode").addEventListener("keydown", e => {
+  if (e.key === "Enter") netJoin(e.target.value);
+});
+
+// Auto-join from a shared link: pokemon-chess.html?join=ABCDE
+const joinParam = new URLSearchParams(location.search).get("join");
+if (joinParam) {
+  setMode("online");
+  document.getElementById("joinCode").value = joinParam.toUpperCase();
+  netJoin(joinParam);
+} else {
+  newGame();
+}
+</script>
+</body>
+</html>
