@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bookworm — Find Your Next Read</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0814;
+    --bg2: rgba(255,255,255,0.04);
+    --card: rgba(255,255,255,0.05);
+    --card-hover: rgba(255,255,255,0.09);
+    --line: rgba(255,255,255,0.10);
+    --line-bright: rgba(167,139,250,0.55);
+    --accent: #a78bfa;
+    --accent2: #fbbf24;
+    --text: #f5f3ff;
+    --muted: #a6a0c3;
+    --good: #4ade80;
+    --star: #fbbf24;
+    --grad: linear-gradient(135deg, #8b5cf6 0%, #d946ef 55%, #ec4899 100%);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Outfit', 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  body::before, body::after {
+    content: ''; position: fixed; border-radius: 50%; z-index: -1; pointer-events: none;
+    filter: blur(70px);
+  }
+  body::before {
+    width: 55vw; height: 55vw; max-width: 760px; max-height: 760px; top: -22%; right: -12%;
+    background: radial-gradient(circle, rgba(139,92,246,0.30), transparent 65%);
+    animation: drift1 26s ease-in-out infinite alternate;
+  }
+  body::after {
+    width: 48vw; height: 48vw; max-width: 660px; max-height: 660px; bottom: -18%; left: -10%;
+    background: radial-gradient(circle, rgba(236,72,153,0.18), transparent 65%);
+    animation: drift2 32s ease-in-out infinite alternate;
+  }
+  @keyframes drift1 { to { transform: translate(-8%, 10%) scale(1.12); } }
+  @keyframes drift2 { to { transform: translate(10%, -8%) scale(1.08); } }
+  ::selection { background: rgba(167,139,250,0.4); }
+  ::-webkit-scrollbar { width: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 99px; }
+  button, input { font-family: inherit; }
+
+  .wrap { max-width: 1050px; margin: 0 auto; padding: 36px 20px 90px; }
+
+  header { text-align: center; margin-bottom: 24px; }
+  header h1 { font-size: 2.7rem; letter-spacing: -0.01em; font-family: 'Fraunces', Georgia, serif; font-weight: 600; }
+  header h1 .brand {
+    background: linear-gradient(120deg, #c4b5fd 0%, #f9a8d4 55%, #fcd34d 110%);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  header p { color: var(--muted); margin-top: 8px; font-weight: 300; font-size: 1.02rem; }
+  header .powered { font-size: 0.75rem; color: var(--muted); opacity: 0.7; margin-top: 6px; }
+  header .powered a { color: var(--accent); text-decoration: none; }
+
+  /* Tabs */
+  .tabs { display: flex; justify-content: center; gap: 10px; margin: 26px 0 30px; flex-wrap: wrap; }
+  .tab {
+    background: var(--card); color: var(--muted); border: 1px solid var(--line);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    padding: 10px 22px; border-radius: 999px; cursor: pointer; font-size: 0.95rem; font-weight: 500;
+    transition: all 0.2s ease;
+  }
+  .tab:hover { color: var(--text); border-color: rgba(255,255,255,0.25); transform: translateY(-1px); }
+  .tab.active {
+    background: var(--grad); color: #fff; font-weight: 600; border-color: transparent;
+    box-shadow: 0 10px 28px -10px rgba(167,107,250,0.65);
+  }
+  .tab .badge { background: rgba(0,0,0,0.28); border-radius: 999px; padding: 1px 8px; font-size: 0.8rem; margin-left: 6px; }
+  .tab.active .badge { background: rgba(255,255,255,0.22); }
+
+  /* Journey / decision path */
+  .journey { display: flex; align-items: center; flex-wrap: wrap; gap: 0; justify-content: center; margin-bottom: 30px; min-height: 48px; }
+  .jnode {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--card); border: 1px solid var(--line);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    padding: 9px 16px; border-radius: 14px; cursor: pointer;
+    transition: all 0.2s ease; font-size: 0.9rem;
+  }
+  .jnode:hover { border-color: var(--accent2); background: var(--card-hover); transform: translateY(-1px); }
+  .jnode .jlabel { color: var(--muted); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.09em; display: block; }
+  .jnode .jvalue { font-weight: 600; }
+  .jnode.current {
+    border-color: var(--line-bright); border-style: dashed; cursor: default;
+    box-shadow: 0 0 24px -6px rgba(139,92,246,0.45);
+  }
+  .jnode.current .jvalue { color: var(--accent); }
+  .jconnector { width: 28px; height: 2px; background: linear-gradient(90deg, rgba(167,139,250,0.45), rgba(236,72,153,0.45)); position: relative; }
+  .jconnector::after { content: ''; position: absolute; right: -1px; top: -3px; border: 4px solid transparent; border-left-color: rgba(236,72,153,0.55); }
+
+  /* Question card */
+  .question-card { text-align: center; animation: fadeUp 0.3s ease; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+  .question-card h2 { font-size: 1.7rem; margin-bottom: 8px; font-family: 'Fraunces', Georgia, serif; font-weight: 500; }
+  .question-card .sub { color: var(--muted); margin-bottom: 26px; font-weight: 300; }
+  .options { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; max-width: 980px; margin: 0 auto; }
+  .option {
+    background: var(--card); border: 1px solid var(--line); border-radius: 20px;
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    padding: 24px 16px 22px; cursor: pointer; text-align: center;
+    transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.2s, background 0.2s, box-shadow 0.25s;
+  }
+  .option:hover {
+    background: var(--card-hover); border-color: var(--line-bright); transform: translateY(-5px);
+    box-shadow: 0 20px 44px -20px rgba(139,92,246,0.5);
+  }
+  .option .icon {
+    width: 58px; height: 58px; display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 12px; font-size: 1.7rem; border-radius: 18px;
+    background: linear-gradient(135deg, rgba(139,92,246,0.20), rgba(236,72,153,0.14));
+    border: 1px solid var(--line);
+  }
+  .option .name { font-weight: 600; font-size: 1.03rem; }
+  .option .desc { color: var(--muted); font-size: 0.84rem; margin-top: 5px; line-height: 1.4; font-weight: 300; }
+  .option.skip { border-style: dashed; opacity: 0.85; }
+  .option.skip .icon { background: var(--bg2); }
+
+  .toolbar { display: flex; justify-content: center; gap: 10px; margin-top: 30px; flex-wrap: wrap; }
+  .btn {
+    background: var(--card); color: var(--muted); border: 1px solid var(--line);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    padding: 9px 20px; border-radius: 999px; cursor: pointer; font-size: 0.9rem; font-weight: 500;
+    transition: all 0.2s ease;
+  }
+  .btn:hover { color: var(--text); border-color: rgba(255,255,255,0.28); transform: translateY(-1px); }
+  .btn.primary {
+    background: var(--grad); color: #fff; border-color: transparent; font-weight: 600;
+    box-shadow: 0 10px 28px -10px rgba(167,107,250,0.65);
+  }
+  .btn.primary:hover { filter: brightness(1.12); box-shadow: 0 14px 32px -10px rgba(167,107,250,0.8); }
+
+  /* Results & book cards */
+  .results-head { text-align: center; margin-bottom: 24px; }
+  .results-head h2 { font-size: 1.65rem; font-family: 'Fraunces', Georgia, serif; font-weight: 500; }
+  .results-head .sub { color: var(--muted); margin-top: 6px; font-weight: 300; }
+  .section-label { text-align: center; color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.14em; margin: 30px 0 16px; }
+  .books { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+  .book {
+    background: var(--card); border: 1px solid var(--line); border-radius: 20px;
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    padding: 18px; display: flex; flex-direction: column; gap: 10px;
+    animation: fadeUp 0.3s ease;
+    transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.2s, box-shadow 0.25s;
+  }
+  .book:hover {
+    transform: translateY(-3px); border-color: rgba(255,255,255,0.22);
+    box-shadow: 0 18px 40px -22px rgba(0,0,0,0.8);
+  }
+  .book .main-row { display: flex; gap: 14px; }
+  .cover {
+    width: 76px; height: 112px; flex-shrink: 0; border-radius: 10px; object-fit: cover;
+    background: linear-gradient(160deg, rgba(139,92,246,0.15), rgba(236,72,153,0.1));
+    border: 1px solid var(--line);
+    box-shadow: 0 10px 24px -8px rgba(0,0,0,0.6);
+  }
+  .cover.placeholder { display: flex; align-items: center; justify-content: center; font-size: 1.8rem; }
+  .book .info { min-width: 0; flex-grow: 1; }
+  .book .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+  .book h3 { font-size: 1.04rem; line-height: 1.32; font-weight: 600; }
+  .book h3 a { color: var(--text); text-decoration: none; transition: color 0.15s; }
+  .book h3 a:hover { color: var(--accent); }
+  .book .author { color: var(--muted); font-size: 0.86rem; margin-top: 3px; font-weight: 300; }
+  .olrating { color: var(--accent2); font-size: 0.82rem; margin-top: 7px; }
+  .match {
+    flex-shrink: 0; font-size: 0.71rem; font-weight: 700; padding: 4px 10px; border-radius: 999px;
+    background: rgba(74,222,128,0.13); color: var(--good); white-space: nowrap;
+    border: 1px solid rgba(74,222,128,0.22);
+  }
+  .match.close { background: rgba(251,191,36,0.12); color: var(--accent2); border-color: rgba(251,191,36,0.22); }
+  .match.pick { background: rgba(167,139,250,0.14); color: var(--accent); border-color: rgba(167,139,250,0.28); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    font-size: 0.72rem; color: var(--muted); background: var(--bg2);
+    border: 1px solid var(--line); padding: 3px 10px; border-radius: 999px;
+    max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .because { font-size: 0.78rem; color: var(--accent2); }
+
+  /* Stars */
+  .stars { display: flex; align-items: center; gap: 3px; user-select: none; margin-top: auto; }
+  .star { font-size: 1.32rem; cursor: pointer; color: rgba(255,255,255,0.16); transition: color 0.12s, transform 0.12s; }
+  .star:hover { transform: scale(1.2); }
+  .star.lit { color: var(--star); text-shadow: 0 0 14px rgba(251,191,36,0.45); }
+  .stars .clear-rating { font-size: 0.74rem; color: var(--muted); margin-left: 8px; cursor: pointer; visibility: hidden; }
+  .stars.rated .clear-rating { visibility: visible; }
+  .stars .clear-rating:hover { color: var(--text); }
+  .rate-hint { font-size: 0.74rem; color: var(--muted); margin-left: 6px; }
+
+  .empty { text-align: center; color: var(--muted); padding: 60px 20px; line-height: 1.7; font-weight: 300; }
+  .empty .big { font-size: 2.6rem; display: block; margin-bottom: 12px; }
+
+  .loading { text-align: center; color: var(--muted); padding: 70px 20px; font-weight: 300; }
+  .loading .spinner {
+    width: 44px; height: 44px; margin: 0 auto 18px; border-radius: 50%;
+    border: 3px solid rgba(255,255,255,0.1); border-top-color: var(--accent); border-right-color: #ec4899;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .taste-summary {
+    background: var(--card); border: 1px solid var(--line); border-radius: 20px;
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    padding: 18px 22px; margin-bottom: 24px; text-align: center; font-size: 0.94rem; color: var(--muted); line-height: 1.65; font-weight: 300;
+  }
+  .taste-summary b { color: var(--accent2); font-weight: 600; }
+
+  /* Search bar (rate books you've read) */
+  .searchbar { display: flex; gap: 10px; max-width: 560px; margin: 0 auto 26px; }
+  .searchbar input {
+    flex-grow: 1; background: var(--card); border: 1px solid var(--line); border-radius: 999px;
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    padding: 11px 20px; color: var(--text); font-size: 0.95rem; outline: none; transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .searchbar input:focus { border-color: var(--line-bright); box-shadow: 0 0 0 4px rgba(139,92,246,0.15); }
+  .searchbar input::placeholder { color: var(--muted); }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+    background: var(--grad); color: #fff; font-weight: 600; padding: 11px 24px;
+    border-radius: 999px; opacity: 0; transition: all 0.3s; pointer-events: none; z-index: 50;
+    box-shadow: 0 14px 36px -10px rgba(167,107,250,0.7);
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  @media (max-width: 560px) {
+    .options { grid-template-columns: 1fr 1fr; }
+    .jconnector { width: 14px; }
+    header h1 { font-size: 2.1rem; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    body::before, body::after { animation: none; }
+    * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>📚 <span class="brand">Bookworm</span></h1>
+    <p>Answer a few questions, get a shortlist. Rate what you've read — recommendations learn your taste.</p>
+    <p class="powered">Live data &amp; covers from <a href="https://openlibrary.org" target="_blank" rel="noopener">Open Library</a></p>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="finder" onclick="switchTab('finder')">🧭 Find Books</button>
+    <button class="tab" data-tab="foryou" onclick="switchTab('foryou')">✨ For You</button>
+    <button class="tab" data-tab="ratings" onclick="switchTab('ratings')">⭐ My Ratings<span class="badge" id="ratingCount">0</span></button>
+  </nav>
+
+  <main id="view"></main>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================== TREE CONFIG ============================== */
+/* Each genre/subgenre maps to an Open Library Solr query. */
+const GENRES = {
+  fantasy:    { name:"Fantasy",            icon:"🐉", desc:"Magic, quests, and other worlds",        q:'subject:fantasy' },
+  scifi:      { name:"Science Fiction",    icon:"🚀", desc:"Space, tech, and big what-ifs",          q:'subject:"science fiction"' },
+  mystery:    { name:"Mystery & Thriller", icon:"🔍", desc:"Whodunits and page-turners",             q:'subject:mystery' },
+  romance:    { name:"Romance",            icon:"💘", desc:"Love stories of every flavor",           q:'subject:romance' },
+  horror:     { name:"Horror",             icon:"👻", desc:"Chills, dread, and things in the dark",  q:'subject:horror' },
+  historical: { name:"Historical Fiction", icon:"🏛️", desc:"Stories set in the past",               q:'subject:"historical fiction"' },
+  literary:   { name:"Literary Fiction",   icon:"🖋️", desc:"Character-driven, beautifully written", q:'(subject:"literary fiction" OR subject:classics)' },
+  nonfiction: { name:"Non-Fiction",        icon:"🧠", desc:"True stories and big ideas",             q:'(subject:biography OR subject:history OR subject:science OR subject:"self-help")' },
+};
+
+const SUBGENRES = {
+  fantasy: {
+    epic:    { name:"Epic / High Fantasy",  icon:"⚔️", desc:"Sprawling worlds and big stakes",      q:'subject:"epic fantasy"' },
+    urban:   { name:"Urban & Contemporary", icon:"🌃", desc:"Magic hiding in the modern world",     q:'subject:"urban fantasy"' },
+    dark:    { name:"Dark Fantasy",         icon:"🩸", desc:"Morally gray and merciless",           q:'subject:"dark fantasy"' },
+    magic:   { name:"Dragons & Wizards",    icon:"🧙", desc:"The classic ingredients, done right",  q:'(subject:dragons OR subject:wizards)' },
+  },
+  scifi: {
+    space:    { name:"Space Opera",          icon:"🌌", desc:"Ships, empires, and the void",        q:'subject:"space opera"' },
+    dystopia: { name:"Dystopian",            icon:"🏚️", desc:"Futures gone wrong",                  q:'(subject:dystopia OR subject:dystopias)' },
+    time:     { name:"Time Travel",          icon:"⏳", desc:"Past, future, and paradoxes",         q:'subject:"time travel"' },
+    aliens:   { name:"Aliens & First Contact", icon:"👽", desc:"We are not alone",                  q:'(subject:aliens OR subject:"extraterrestrial beings")' },
+  },
+  mystery: {
+    detective: { name:"Detective & Crime",       icon:"🕵️", desc:"Clues, cases, and investigators", q:'subject:detective' },
+    suspense:  { name:"Suspense & Thriller",     icon:"🧩", desc:"Tension on every page",            q:'subject:suspense' },
+    cozy:      { name:"Cozy Mystery",            icon:"🫖", desc:"Murder, but make it charming",     q:'subject:"cozy mystery"' },
+    spy:       { name:"Spy & Espionage",         icon:"🎯", desc:"Secrets, agents, and tradecraft",  q:'subject:espionage' },
+  },
+  romance: {
+    contemporary: { name:"Contemporary",       icon:"🏙️", desc:"Modern love, real feelings",        q:'subject:"contemporary romance"' },
+    historical:   { name:"Historical & Regency", icon:"🎩", desc:"Corsets, courtships, and dukes",  q:'(subject:"historical romance" OR subject:regency)' },
+    romcom:       { name:"Rom-Com",            icon:"😄", desc:"Banter-forward and feel-good",       q:'subject:"romantic comedy"' },
+    paranormal:   { name:"Fantasy & Paranormal", icon:"🧚", desc:"Fae courts, vampires, and fate",   q:'(subject:"paranormal romance" OR subject:"fantasy romance")' },
+  },
+  horror: {
+    ghosts:   { name:"Ghosts & Hauntings",   icon:"🕯️", desc:"Houses that remember",                q:'(subject:ghosts OR subject:"haunted houses")' },
+    monsters: { name:"Vampires & Monsters",  icon:"🧛", desc:"Fangs, claws, and worse",              q:'(subject:vampires OR subject:zombies OR subject:monsters)' },
+    gothic:   { name:"Gothic",               icon:"🏰", desc:"Crumbling mansions, buried secrets",   q:'subject:"gothic fiction"' },
+    occult:   { name:"Supernatural & Occult", icon:"🔮", desc:"Demons, curses, and dark rites",      q:'(subject:supernatural OR subject:occult)' },
+  },
+  historical: {
+    ww2:      { name:"World War II",        icon:"✉️", desc:"Resistance, survival, and aftermath",  q:'(subject:"world war, 1939-1945" AND subject:fiction)' },
+    medieval: { name:"Ancient & Medieval",  icon:"🏺", desc:"Myth, empire, and cathedral stone",    q:'((subject:"middle ages" OR subject:medieval) AND subject:fiction)' },
+    western:  { name:"Westerns & Frontier", icon:"🤠", desc:"Dust, grit, and open country",         q:'subject:"western stories"' },
+    myth:     { name:"Myth Retellings",     icon:"🦉", desc:"Old gods, new voices",                 q:'(subject:mythology AND subject:fiction)' },
+  },
+  literary: {
+    comingofage: { name:"Coming of Age",     icon:"🎓", desc:"Growing up, the hard way",            q:'subject:"coming of age"' },
+    family:      { name:"Family & Domestic", icon:"🌳", desc:"Generations, roots, and reckonings",  q:'subject:"domestic fiction"' },
+    magical:     { name:"Magical Realism",   icon:"🦋", desc:"The everyday, slightly enchanted",    q:'subject:"magic realism"' },
+    classics:    { name:"Classics",          icon:"🏛️", desc:"The ones that earned their shelf",   q:'subject:classics' },
+  },
+  nonfiction: {
+    memoir:  { name:"Memoir & Biography",  icon:"👤", desc:"Remarkable true lives",                 q:'(subject:biography OR subject:autobiography OR subject:memoir)' },
+    science: { name:"Science & Nature",    icon:"🧪", desc:"How the world actually works",          q:'(subject:"popular science" OR subject:science)' },
+    history: { name:"History",             icon:"📜", desc:"True stories that read like thrillers", q:'subject:history' },
+    self:    { name:"Psychology & Growth", icon:"🌱", desc:"Understand and upgrade yourself",       q:'(subject:"self-help" OR subject:psychology)' },
+  },
+};
+
+const ERAS = {
+  classic: { name:"Classic",  icon:"🕰️", desc:"Published before 1980",  test: y => y && y < 1980 },
+  modern:  { name:"Modern",   icon:"📻", desc:"1980 – 2009",            test: y => y && y >= 1980 && y < 2010 },
+  recent:  { name:"Recent",   icon:"✨", desc:"2010 to today",          test: y => y && y >= 2010 },
+};
+const LENGTHS = {
+  short:  { name:"Quick Read", icon:"📄", desc:"Under ~300 pages",      test: p => p && p < 300 },
+  medium: { name:"Standard",   icon:"📖", desc:"Roughly 300–500 pages", test: p => p && p >= 300 && p <= 500 },
+  long:   { name:"Epic",       icon:"📚", desc:"500+ pages",            test: p => p && p > 500 },
+};
+
+const STEPS = [
+  { key:"g", label:"Genre", title:"What genre are you in the mood for?", sub:"Pick a shelf to start from.",
+    options: () => Object.entries(GENRES).map(([k,v]) => ({val:k, ...v})) },
+  { key:"s", label:"Style", title:"Which corner of {genre}?", sub:"Narrow it to a flavor.", skippable:true,
+    options: (ans) => Object.entries(SUBGENRES[ans.g]).map(([k,v]) => ({val:k, ...v})) },
+  { key:"era", label:"Era", title:"How vintage should it be?", sub:"When was it published?", skippable:true,
+    options: () => Object.entries(ERAS).map(([k,v]) => ({val:k, ...v})) },
+  { key:"len", label:"Length", title:"How much book do you want?", sub:"Last question — then your shortlist.", skippable:true,
+    options: () => Object.entries(LENGTHS).map(([k,v]) => ({val:k, ...v})) },
+];
+
+/* ============================== OPEN LIBRARY API ============================== */
+const OL_FIELDS = "key,title,author_name,first_publish_year,cover_i,number_of_pages_median,ratings_average,ratings_count,subject";
+const SUBJECT_STOPLIST = new Set([
+  "fiction","nonfiction","literature","accessible book","protected daisy","in library",
+  "large type books","open library staff picks","juvenile fiction","juvenile literature",
+  "general","novels","american literature","english literature","long now manual for civilization",
+  "specimens","textbooks","miscellanea","collections"
+]);
+
+const apiCache = new Map();
+async function olSearch(q, limit = 100, sort = "rating") {
+  const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&fields=${OL_FIELDS}${sort ? `&sort=${sort}` : ""}&limit=${limit}&lang=en`;
+  if (apiCache.has(url)) return apiCache.get(url);
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Open Library returned ${res.status}`);
+  const data = await res.json();
+  const books = normalize(data.docs || []);
+  apiCache.set(url, books);
+  return books;
+}
+
+function cleanSubjects(raw) {
+  const out = [];
+  for (const s of raw || []) {
+    const v = String(s).toLowerCase().trim();
+    if (v.length < 3 || v.length > 32) continue;
+    if (SUBJECT_STOPLIST.has(v)) continue;
+    if (/nyt:|award:|reading level|translations|=|--|:\s/.test(v)) continue;
+    if (!out.includes(v)) out.push(v);
+    if (out.length >= 12) break;
+  }
+  return out;
+}
+
+function normalize(docs) {
+  const seen = new Set();
+  const books = [];
+  for (const d of docs) {
+    if (!d.key || !d.title || !d.author_name || !d.author_name.length || !d.cover_i) continue;
+    const dedupeKey = (d.title + "|" + d.author_name[0]).toLowerCase();
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+    books.push({
+      key: d.key,
+      t: d.title,
+      a: d.author_name[0],
+      y: d.first_publish_year || null,
+      cover: d.cover_i,
+      pages: d.number_of_pages_median || null,
+      ra: d.ratings_average || null,
+      rc: d.ratings_count || 0,
+      subjects: cleanSubjects(d.subject),
+    });
+  }
+  return books;
+}
+
+/* Bayesian-weighted quality so a 5.0 with 3 ratings doesn't beat a 4.4 with 900 */
+function quality(b) {
+  const n = b.rc, avg = b.ra || 0;
+  return (avg * n + 3.4 * 10) / (n + 10);
+}
+
+/* ============================== STATE ============================== */
+let answers = {};
+let stepIndex = 0;
+let activeTab = "finder";
+let ratings = {};   // work key -> { r: 1..5, b: book object }
+try { ratings = JSON.parse(localStorage.getItem("bookworm-ol-ratings") || "{}"); } catch(e) { ratings = {}; }
+function saveRatings() { localStorage.setItem("bookworm-ol-ratings", JSON.stringify(ratings)); }
+
+let lastSearchResults = null;  // cache of finder results for re-render after rating
+let lastSearchSig = "";
+
+/* ============================== TASTE ENGINE ============================== */
+function eraOf(y) { for (const [k,v] of Object.entries(ERAS)) if (v.test(y)) return k; return null; }
+function lenOf(p) { for (const [k,v] of Object.entries(LENGTHS)) if (v.test(p)) return k; return null; }
+
+function tasteProfile() {
+  const p = { subj:{}, auth:{}, era:{}, len:{} };
+  for (const {r, b} of Object.values(ratings)) {
+    const w = r - 3;
+    p.auth[b.a] = (p.auth[b.a] || 0) + w;
+    for (const s of b.subjects.slice(0, 10)) p.subj[s] = (p.subj[s] || 0) + w;
+    const e = eraOf(b.y); if (e) p.era[e] = (p.era[e] || 0) + w;
+    const l = lenOf(b.pages); if (l) p.len[l] = (p.len[l] || 0) + w;
+  }
+  return p;
+}
+function tasteScore(b, p) {
+  let s = 3 * (p.auth[b.a] || 0);
+  let subjSum = 0;
+  for (const sub of b.subjects) subjSum += p.subj[sub] || 0;
+  s += Math.max(-6, Math.min(6, subjSum));           // cap so subject spam can't dominate
+  const e = eraOf(b.y); if (e) s += 0.5 * (p.era[e] || 0);
+  const l = lenOf(b.pages); if (l) s += 0.3 * (p.len[l] || 0);
+  return s;
+}
+function tasteReasons(b, p) {
+  const reasons = [];
+  if ((p.auth[b.a] || 0) > 0) reasons.push(`you like ${b.a}`);
+  const best = b.subjects.filter(s => (p.subj[s] || 0) > 0).sort((x,y) => p.subj[y] - p.subj[x])[0];
+  if (best) reasons.push(`you enjoy ${best}`);
+  return reasons.slice(0, 2);
+}
+function topPositives(p) {
+  const subjects = Object.entries(p.subj).filter(([,w]) => w > 0).sort((a,b) => b[1]-a[1]).slice(0,3).map(([s]) => s);
+  const authors  = Object.entries(p.auth).filter(([,w]) => w > 0).sort((a,b) => b[1]-a[1]).slice(0,2).map(([a]) => a);
+  return { subjects, authors };
+}
+
+/* ============================== FILTER / RANK ============================== */
+function currentQuery() {
+  if (answers.s && answers.s !== "any") return SUBGENRES[answers.g][answers.s].q;
+  return GENRES[answers.g].q;
+}
+function partitionResults(books) {
+  const exact = [], close = [];
+  for (const b of books) {
+    let misses = 0;
+    if (answers.era && answers.era !== "any" && !ERAS[answers.era].test(b.y)) misses++;
+    if (answers.len && answers.len !== "any" && !LENGTHS[answers.len].test(b.pages)) misses++;
+    if (misses === 0) exact.push(b);
+    else if (misses === 1) close.push(b);
+  }
+  const p = tasteProfile();
+  const sorter = (x,y) => (tasteScore(y,p) - tasteScore(x,p)) || (quality(y) - quality(x));
+  exact.sort(sorter); close.sort(sorter);
+  return { exact: exact.slice(0, 12), close: exact.length < 4 ? close.slice(0, 8) : [] };
+}
+
+/* ============================== RENDERING ============================== */
+const view = document.getElementById("view");
+const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+
+function switchTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab === tab));
+  render();
+}
+function render() {
+  document.getElementById("ratingCount").textContent = Object.keys(ratings).length;
+  if (activeTab === "finder") renderFinder();
+  else if (activeTab === "foryou") renderForYou();
+  else renderRatings();
+}
+function loadingHTML(msg) {
+  return `<div class="loading"><div class="spinner"></div>${esc(msg)}</div>`;
+}
+function errorHTML(retryFn) {
+  return `<div class="empty"><span class="big">📡</span>Couldn't reach Open Library.<br>Check your connection and try again.<br><br>
+    <button class="btn primary" onclick="${retryFn}">Retry</button></div>`;
+}
+
+function answerLabel(stepKey, val) {
+  if (val === "any") return "No preference";
+  if (stepKey === "g") return GENRES[val].name;
+  if (stepKey === "s") return SUBGENRES[answers.g][val].name;
+  if (stepKey === "era") return ERAS[val].name;
+  return LENGTHS[val].name;
+}
+
+function journeyHTML(showCurrent) {
+  let html = '<div class="journey">';
+  const parts = [];
+  for (let i = 0; i < stepIndex; i++) {
+    const st = STEPS[i];
+    parts.push(`<div class="jnode" onclick="rewindTo(${i})" title="Click to change">
+      <span>${i===0 ? "📚" : "·"}</span>
+      <span><span class="jlabel">${st.label}</span><span class="jvalue">${esc(answerLabel(st.key, answers[st.key]))}</span></span>
+    </div>`);
+  }
+  if (showCurrent && stepIndex < STEPS.length) {
+    parts.push(`<div class="jnode current"><span><span class="jlabel">${STEPS[stepIndex].label}</span><span class="jvalue">choosing…</span></span></div>`);
+  } else if (!showCurrent) {
+    parts.push(`<div class="jnode current"><span>🎯</span><span><span class="jlabel">Result</span><span class="jvalue">Your shortlist</span></span></div>`);
+  }
+  html += parts.join('<div class="jconnector"></div>');
+  return html + '</div>';
+}
+
+function renderFinder() {
+  if (stepIndex >= STEPS.length) { renderResults(); return; }
+  const step = STEPS[stepIndex];
+  const opts = step.options(answers);
+  const title = step.title.replace("{genre}", answers.g ? GENRES[answers.g].name : "");
+
+  const optHTML = opts.map(o => `<div class="option" onclick="choose('${o.val}')">
+      <span class="icon">${o.icon}</span>
+      <div class="name">${esc(o.name)}</div>
+      <div class="desc">${esc(o.desc)}</div>
+    </div>`).join("");
+  const skipHTML = step.skippable
+    ? `<div class="option skip" onclick="choose('any')"><span class="icon">🤷</span><div class="name">No preference</div><div class="desc">Show me everything</div></div>`
+    : "";
+
+  view.innerHTML = `
+    ${journeyHTML(true)}
+    <div class="question-card">
+      <h2>${esc(title)}</h2>
+      <p class="sub">${esc(step.sub)}</p>
+      <div class="options">${optHTML}${skipHTML}</div>
+      <div class="toolbar">
+        ${stepIndex > 0 ? '<button class="btn" onclick="goBack()">← Back</button>' : ""}
+        <button class="btn" onclick="surpriseMe()">🎲 Surprise me</button>
+        ${stepIndex > 0 ? '<button class="btn" onclick="restart()">Start over</button>' : ""}
+      </div>
+    </div>`;
+}
+
+function bookCard(b, badge, badgeClass, reasons) {
+  const ol = b.ra ? `★ ${b.ra.toFixed(1)} <span style="opacity:0.7">(${b.rc.toLocaleString()} on Open Library)</span>` : `<span style="opacity:0.6">No community rating yet</span>`;
+  const meta = [];
+  if (b.y) meta.push(`<span class="chip">📅 ${b.y}</span>`);
+  if (b.pages) meta.push(`<span class="chip">📄 ${b.pages} pages</span>`);
+  for (const s of b.subjects.slice(0, 3)) meta.push(`<span class="chip">${esc(s)}</span>`);
+  return `<div class="book">
+    <div class="main-row">
+      <img class="cover" loading="lazy" src="https://covers.openlibrary.org/b/id/${b.cover}-M.jpg" alt="" onerror="this.outerHTML='<div class=&quot;cover placeholder&quot;>📕</div>'">
+      <div class="info">
+        <div class="top">
+          <div>
+            <h3><a href="https://openlibrary.org${esc(b.key)}" target="_blank" rel="noopener">${esc(b.t)}</a></h3>
+            <div class="author">${esc(b.a)}</div>
+          </div>
+          ${badge ? `<span class="match ${badgeClass||""}">${badge}</span>` : ""}
+        </div>
+        <div class="olrating">${ol}</div>
+      </div>
+    </div>
+    <div class="chips">${meta.join("")}</div>
+    ${reasons && reasons.length ? `<div class="because">✨ Because ${esc(reasons.join(" and "))}</div>` : ""}
+    ${starsHTML(b)}
+  </div>`;
+}
+
+function starsHTML(b) {
+  const r = ratings[b.key] ? ratings[b.key].r : 0;
+  const id = esc(b.key);
+  let s = `<div class="stars ${r?"rated":""}">`;
+  for (let i = 1; i <= 5; i++) {
+    s += `<span class="star ${i<=r?"lit":""}" onclick='rate(${JSON.stringify(b.key)},${i})' title="${i} star${i>1?"s":""}">★</span>`;
+  }
+  s += `<span class="clear-rating" onclick='unrate(${JSON.stringify(b.key)})'>clear</span>`;
+  s += r ? "" : `<span class="rate-hint">rate it</span>`;
+  return s + `</div>`;
+}
+// book lookup so rate() can store full metadata from whatever list rendered it
+const bookIndex = new Map();
+function indexBooks(list) { for (const b of list) bookIndex.set(b.key, b); }
+
+async function renderResults() {
+  const sig = JSON.stringify(answers);
+  if (!lastSearchResults || lastSearchSig !== sig) {
+    view.innerHTML = journeyHTML(false) + loadingHTML("Searching the stacks at Open Library…");
+    try {
+      lastSearchResults = await olSearch(currentQuery());
+      lastSearchSig = sig;
+    } catch (e) {
+      lastSearchResults = null;
+      view.innerHTML = journeyHTML(false) + errorHTML("renderResults()");
+      return;
+    }
+  }
+  if (JSON.stringify(answers) !== sig || activeTab !== "finder" || stepIndex < STEPS.length) return; // user navigated away mid-fetch
+
+  const { exact, close } = partitionResults(lastSearchResults);
+  indexBooks([...exact, ...close]);
+  const p = tasteProfile();
+  const hasTaste = Object.keys(ratings).length > 0;
+
+  let body = "";
+  if (exact.length === 0 && close.length === 0) {
+    body = `<div class="empty"><span class="big">🔎</span>No books match that exact combination.<br>Try backing up a step or loosening a filter.</div>`;
+  } else {
+    if (exact.length) body += `<div class="books">${exact.map(b =>
+      bookCard(b, hasTaste && tasteScore(b,p) > 1.5 ? "Top pick for you" : "Great match", hasTaste && tasteScore(b,p) > 1.5 ? "pick" : "", hasTaste ? tasteReasons(b,p) : [])).join("")}</div>`;
+    if (close.length) body += `<div class="section-label">Close matches — off by one preference</div><div class="books">${close.map(b =>
+      bookCard(b, "Close match", "close", [])).join("")}</div>`;
+  }
+
+  view.innerHTML = `
+    ${journeyHTML(false)}
+    <div class="results-head">
+      <h2>Your shortlist 🎉</h2>
+      <p class="sub">${exact.length} match${exact.length===1?"":"es"}${close.length?` + ${close.length} close`:""}.
+      Rate anything you've read — it sharpens every future recommendation.</p>
+    </div>
+    ${body}
+    <div class="toolbar">
+      <button class="btn" onclick="goBack()">← Back</button>
+      <button class="btn primary" onclick="restart()">🧭 New search</button>
+      <button class="btn" onclick="switchTab('foryou')">✨ See picks for you</button>
+    </div>`;
+}
+
+async function renderForYou() {
+  const rated = Object.keys(ratings).length;
+  if (rated === 0) {
+    view.innerHTML = `<div class="empty"><span class="big">✨</span>No ratings yet — I don't know your taste!<br>
+      Use <b>Find Books</b> to browse, or search for books you've already read in <b>My Ratings</b>.<br><br>
+      <button class="btn primary" onclick="switchTab('finder')">🧭 Find books to rate</button></div>`;
+    return;
+  }
+  const p = tasteProfile();
+  const { subjects, authors } = topPositives(p);
+  if (subjects.length === 0 && authors.length === 0) {
+    view.innerHTML = `<div class="empty"><span class="big">🤔</span>So far you've only told me what you <i>don't</i> like.<br>Rate a few books 4–5 stars and I'll have something to work with.</div>`;
+    return;
+  }
+
+  view.innerHTML = loadingHTML("Hunting down books that match your taste…");
+  const queries = [
+    ...subjects.map(s => `subject:"${s}"`),
+    ...authors.map(a => `author:"${a}"`),
+  ];
+  let pools;
+  try {
+    pools = await Promise.all(queries.map(q => olSearch(q, 40)));
+  } catch (e) {
+    view.innerHTML = errorHTML("renderForYou()");
+    return;
+  }
+  if (activeTab !== "foryou") return;
+
+  const merged = new Map();
+  for (const pool of pools) for (const b of pool) if (!merged.has(b.key) && !(b.key in ratings)) merged.set(b.key, b);
+  const recs = [...merged.values()]
+    .map(b => ({ b, score: tasteScore(b, p), q: quality(b) }))
+    .sort((a,b) => (b.score - a.score) || (b.q - a.q))
+    .slice(0, 12);
+  indexBooks(recs.map(r => r.b));
+
+  const summary = `Based on <b>${rated}</b> rating${rated>1?"s":""}, you gravitate toward
+    ${subjects.length ? `<b>${subjects.map(esc).join("</b>, <b>")}</b>` : ""}${subjects.length && authors.length ? " and authors like " : ""}${authors.length ? `<b>${authors.map(esc).join("</b>, <b>")}</b>` : ""}.
+    Rate more books to sharpen this.`;
+
+  view.innerHTML = `
+    <div class="taste-summary">${summary}</div>
+    ${recs.length ? `<div class="books">${recs.map(({b}) => bookCard(b, "For you", "pick", tasteReasons(b, p))).join("")}</div>`
+      : `<div class="empty"><span class="big">🔎</span>Couldn't find unread books matching your taste — rate a few more!</div>`}`;
+}
+
+function renderRatings() {
+  const entries = Object.values(ratings);
+  const listHTML = entries.length
+    ? `<div class="books">${entries.sort((a,b) => (b.r - a.r) || a.b.t.localeCompare(b.b.t))
+        .map(({b}) => bookCard(b, null, "", [])).join("")}</div>`
+    : `<div class="empty"><span class="big">⭐</span>You haven't rated anything yet.<br>Search above for books you've read — ratings power your recommendations.</div>`;
+  entries.forEach(({b}) => bookIndex.set(b.key, b));
+  view.innerHTML = `
+    <div class="results-head"><h2>My Ratings</h2><p class="sub">Search for books you've read and rate them — every rating sharpens your recommendations.</p></div>
+    <div class="searchbar">
+      <input id="rateSearch" type="text" placeholder="Search any book by title or author…" onkeydown="if(event.key==='Enter')doRateSearch()">
+      <button class="btn primary" onclick="doRateSearch()">Search</button>
+    </div>
+    <div id="rateSearchResults"></div>
+    ${listHTML}`;
+}
+
+async function doRateSearch() {
+  const input = document.getElementById("rateSearch");
+  const target = document.getElementById("rateSearchResults");
+  const q = input.value.trim();
+  if (!q) return;
+  target.innerHTML = loadingHTML("Searching…");
+  let books;
+  try {
+    books = await olSearch(q, 20, null); // relevance sort for title/author lookups
+  } catch (e) {
+    target.innerHTML = `<div class="empty">📡 Search failed — check your connection and try again.</div>`;
+    return;
+  }
+  books = books.slice(0, 8);
+  indexBooks(books);
+  target.innerHTML = books.length
+    ? `<div class="section-label">Search results — click stars to rate</div><div class="books" style="margin-bottom:26px">${books.map(b => bookCard(b, null, "", [])).join("")}</div>`
+    : `<div class="empty">No books found for “${esc(q)}”.</div>`;
+}
+
+/* ============================== ACTIONS ============================== */
+function choose(val) {
+  answers[STEPS[stepIndex].key] = val;
+  stepIndex++;
+  render();
+}
+function rewindTo(i) {
+  for (let j = i; j < STEPS.length; j++) delete answers[STEPS[j].key];
+  stepIndex = i;
+  render();
+}
+function goBack() { if (stepIndex > 0) rewindTo(stepIndex - 1); }
+function restart() { answers = {}; stepIndex = 0; render(); }
+function surpriseMe() {
+  for (let i = stepIndex; i < STEPS.length; i++) {
+    const step = STEPS[i];
+    const opts = step.options(answers).map(o => o.val);
+    // bias era/length toward "no preference" so random picks usually land on books
+    if (step.skippable && Math.random() < 0.4) { answers[step.key] = "any"; continue; }
+    answers[step.key] = opts[Math.floor(Math.random() * opts.length)];
+  }
+  stepIndex = STEPS.length;
+  render();
+}
+function rate(key, stars) {
+  const b = bookIndex.get(key) || (ratings[key] && ratings[key].b);
+  if (!b) return;
+  ratings[key] = { r: stars, b };
+  saveRatings();
+  toast(`Rated ${stars}★ — recommendations updated`);
+  render();
+}
+function unrate(key) {
+  delete ratings[key];
+  saveRatings();
+  render();
+}
+let toastTimer;
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 1800);
+}
+
+render();
+</script>
+</body>
+</html>
